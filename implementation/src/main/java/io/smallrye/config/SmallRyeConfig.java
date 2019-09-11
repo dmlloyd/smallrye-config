@@ -67,43 +67,29 @@ public class SmallRyeConfig implements Config, Serializable {
 
     // no @Override
     public <T, C extends Collection<T>> C getValues(String name, Class<T> itemClass, IntFunction<C> collectionFactory) {
-        return getValues(name, getConverter(itemClass), collectionFactory);
+        return getValues(name, requireConverter(itemClass), collectionFactory);
     }
 
     public <T, C extends Collection<T>> C getValues(String name, Converter<T> converter, IntFunction<C> collectionFactory) {
         return getValue(name, Converters.newCollectionConverter(converter, collectionFactory));
     }
 
+    public SmallRyeConfigAccessor<?> getAccessor(final String propertyName) {
+        return new SmallRyeConfigAccessor<Void>(this, propertyName);
+    }
+
     @Override
     public <T> T getValue(String name, Class<T> aClass) {
-        return getValue(name, getConverter(aClass));
+        return getValue(name, requireConverter(aClass));
     }
 
     public <T> T getValue(String name, Converter<T> converter) {
-        for (ConfigSource configSource : getConfigSources()) {
-            String value = configSource.getValue(name);
-            if (value != null) {
-                final T converted = converter.convert(value);
-                if (converted == null) {
-                    throw propertyNotFound(name);
-                }
-                return converted;
-            }
-        }
-        try {
-            final T converted = converter.convert("");
-            if (converted == null) {
-                throw propertyNotFound(name);
-            }
-            return converted;
-        } catch (IllegalArgumentException ignored) {
-            throw propertyNotFound(name);
-        }
+        return getAccessor(name).convertedWith(converter).getValue();
     }
 
     @Override
     public <T> Optional<T> getOptionalValue(String name, Class<T> aClass) {
-        return getValue(name, getOptionalConverter(aClass));
+        return getAccessor(name).convertedWith(getOptionalConverter(aClass)).getValue();
     }
 
     public <T> Optional<T> getOptionalValue(String name, Converter<T> converter) {
@@ -112,7 +98,7 @@ public class SmallRyeConfig implements Config, Serializable {
 
     public <T, C extends Collection<T>> Optional<C> getOptionalValues(String name, Class<T> itemClass,
             IntFunction<C> collectionFactory) {
-        return getOptionalValues(name, getConverter(itemClass), collectionFactory);
+        return getOptionalValues(name, requireConverter(itemClass), collectionFactory);
     }
 
     public <T, C extends Collection<T>> Optional<C> getOptionalValues(String name, Converter<T> converter,
@@ -154,30 +140,32 @@ public class SmallRyeConfig implements Config, Serializable {
     }
 
     public <T> T convert(String value, Class<T> asType) {
-        return value != null ? getConverter(asType).convert(value) : null;
+        return value != null ? requireConverter(asType).convert(value) : null;
     }
 
     @SuppressWarnings("unchecked")
     private <T> Converter<Optional<T>> getOptionalConverter(Class<T> asType) {
         return optionalConverters.computeIfAbsent(asType,
-                clazz -> Converters.newOptionalConverter(getConverter((Class) clazz)));
+                clazz -> Converters.newOptionalConverter(requireConverter((Class) clazz)));
+    }
+
+    public <T> Converter<T> requireConverter(Class<T> asType) {
+        final Converter<T> converter = getConverter(asType);
+        if (converter == null) {
+            throw new IllegalArgumentException("No Converter registered for class " + asType);
+        }
+        return converter;
     }
 
     @SuppressWarnings("unchecked")
     public <T> Converter<T> getConverter(Class<T> asType) {
         if (asType.isArray()) {
-            return Converters.newArrayConverter(getConverter(asType.getComponentType()), asType);
+            return Converters.newArrayConverter(requireConverter(asType.getComponentType()), asType);
         }
-        return (Converter<T>) converters.computeIfAbsent(asType, clazz -> {
-            final Converter<?> conv = ImplicitConverters.getConverter((Class<?>) clazz);
-            if (conv == null) {
-                throw new IllegalArgumentException("No Converter registered for class " + asType);
-            }
-            return conv;
-        });
+        return (Converter<T>) converters.computeIfAbsent(asType, clazz -> ImplicitConverters.getConverter((Class<?>) clazz));
     }
 
-    private static NoSuchElementException propertyNotFound(final String name) {
+    static NoSuchElementException propertyNotFound(final String name) {
         return new NoSuchElementException("Property " + name + " not found");
     }
 }

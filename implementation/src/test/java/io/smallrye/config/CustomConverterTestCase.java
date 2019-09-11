@@ -47,7 +47,7 @@ public class CustomConverterTestCase {
         SmallRyeConfig config = (SmallRyeConfig) buildConfig("my.prop", "1234");// sanity check
         final Converter<Integer> customConverter = new Converter<Integer>() {
             public Integer convert(final String value) {
-                return Integer.valueOf(Integer.parseInt(value) * 2);
+                return value.isEmpty() ? null : Integer.valueOf(Integer.parseInt(value) * 2);
             }
         };
         // compare against the implicit converter

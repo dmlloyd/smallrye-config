@@ -56,7 +56,7 @@ public class ConfigProducerUtil {
             if (name == null) {
                 return null;
             }
-            final Converter<C> converter = Converters.newCollectionConverter(src.getConverter(valueType), factory);
+            final Converter<C> converter = Converters.newCollectionConverter(src.requireConverter(valueType), factory);
             Optional<C> optionalValue = src.getOptionalValue(name, converter);
             if (optionalValue.isPresent()) {
                 return optionalValue.get();
